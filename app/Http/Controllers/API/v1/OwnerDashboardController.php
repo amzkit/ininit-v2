@@ -29,38 +29,233 @@ class OwnerDashboardController extends Controller
         $this->store = Store::find($request->attributes->get('store_id'));
     }
 
-    public function order_month(Request $request){
-        $select_admin_id = $request->select_admin_id??null;
+    public function calculateAnalytics($data, $useActualDates = false)
+    {
+        $sum = 0;
+        $max_value = PHP_INT_MIN;
+        $min_value = PHP_INT_MAX;
+        $max_date = "N/A";
+        $min_date = "N/A";
+        $valid_entries = 0;
 
-        $current_month = date('m', strtotime(now()));
-        $current_year = date('Y', strtotime(now()));
-        $previous_month = date('m',strtotime("-1 month"));
-        $previous_year_month = date('Y',strtotime("-1 month"));
+        // Initialize arrays for day of week calculations
+        $ordersByDay = [
+            'Sunday' => 0, 'Monday' => 0, 'Tuesday' => 0, 'Wednesday' => 0, 'Thursday' => 0, 'Friday' => 0, 'Saturday' => 0
+        ];
+        $countByDay = [
+            'Sunday' => 0, 'Monday' => 0, 'Tuesday' => 0, 'Wednesday' => 0, 'Thursday' => 0, 'Friday' => 0, 'Saturday' => 0
+        ];
 
-        if($request->month){
-            //$selected_month = substr($request->month, 5, 2);
-            //$selected_year = substr($request->month, 0, 4);
-            $selected_month = $request->month;
-            $selected_year = $request->year;
-        }else{
-            $selected_month = date('m', strtotime(now()));
-            $selected_year = date('Y', strtotime(now()));
-            //$selected_month = date('m',strtotime("-1 month"));
-            //$selected_year = date('Y',strtotime("-1 month"));
+        // Loop through the data to calculate the sum, min/max values, and day of week totals
+        foreach ($data as $item) {
+            $value = (int)$item[1];
+            $actualDate = $useActualDates && isset($item[2]) ? $item[2] : $item[0];
+
+            if ($value > 0) {  // Ignore zero values
+                $sum += $value;
+                $valid_entries++;
+
+                // Format the date and get the day of the week
+                try {
+                    $formattedDate = Carbon::parse($actualDate)->format('D d, M');
+                    $dayOfWeek = Carbon::parse($actualDate)->format('l');  // Get the full name of the day (e.g., "Monday")
+                } catch (\Exception $e) {
+                    $formattedDate = "Invalid Date";
+                    $dayOfWeek = "Unknown";
+                }
+
+                // Track max and min values
+                if ($value > $max_value) {
+                    $max_value = $value;
+                    $max_date = $formattedDate;
+                }
+                if ($value < $min_value) {
+                    $min_value = $value;
+                    $min_date = $formattedDate;
+                }
+
+                // Track orders by day of the week
+                $ordersByDay[$dayOfWeek] += $value;
+                $countByDay[$dayOfWeek]++;
+            }
         }
 
-        $date_range = new \App\Models\Utility\DateRange($selected_year, $selected_month);
+        // Calculate the average orders per day of the week
+        $average = [];
+        foreach ($ordersByDay as $day => $totalOrders) {
+            $average[$day] = $countByDay[$day] > 0 ? $totalOrders / $countByDay[$day] : 0;
+        }
 
-        $packing_data = [];
+        // Calculate the day with the most and least orders
+        $mostOrdersDay = array_search(max($ordersByDay), $ordersByDay);
+        $leastOrdersDay = array_search(min($ordersByDay), $ordersByDay);
+
+        // If no valid entries, reset min/max values
+        if ($valid_entries === 0) {
+            $max_value = 0;
+            $min_value = 0;
+            $max_date = "N/A";
+            $min_date = "N/A";
+        }
+
+        $average = $valid_entries > 0 ? round($sum / $valid_entries, 2) : 0;
+
+        // Return all calculated data, including new analytics
+        return [
+            'sum' => $sum,
+            'max_value' => $max_value,
+            'max_date' => $max_date,
+            'min_value' => $min_value,
+            'min_date' => $min_date,
+            'average' => $average,
+            'mostOrdersDay' => $mostOrdersDay,
+            'leastOrdersDay' => $leastOrdersDay,
+            'average' => $average,  // New analytics: average by day of week
+            'ordersByDay' => $ordersByDay,    // New analytics: total orders by day of week
+        ];
+    }
+    public function order_month(Request $request)
+    {
+        $select_admin_id = $request->select_admin_id ?? null;
+    
+        $current_month = date('m', strtotime(now()));
+        $current_year = date('Y', strtotime(now()));
+        $previous_month = date('m', strtotime("-1 month"));
+        $previous_year_month = date('Y', strtotime("-1 month"));
+    
+        if ($request->month) {
+            $selected_month = $request->month;
+            $selected_year = $request->year;
+        } else {
+            $selected_month = $current_month;
+            $selected_year = $current_year;
+        }
+    
+        $date_range = new \App\Models\Utility\DateRange($selected_year, $selected_month);
+    
+        // Fetch packing data (selected and comparison)
         $packing_data = $this->get_data_between($date_range->date_from, $date_range->date_to);
     
+        // Calculate period-based analytics (with min, max, average)
+        //$selectedPeriodAnalytics = $this->calculatePeriodAnalytics($packing_data['packing_data']['selected_data']);
+        //$comparidonPeriodAnalytics = $this->calculatePeriodAnalytics($packing_data['packing_data']['comparison_data']);
+        // Calculate Day of Week Analytics
+        //$selected_day_of_week_analytics = $this->calculateDayOfWeekAnalytics($packing_data['packing_data']['selected_data']);
+        //$comparison_day_of_week_analytics = $this->calculateDayOfWeekAnalytics($packing_data['packing_data']['comparison_data']);
+    
+        // Merge period analytics and day of week analytics with the existing analytics
+        $analytics_data = array_merge(
+            $packing_data['analytics_data'],
+            [
+                'period_analytics' => [
+                    'selected' => $this->calculatePeriodAnalytics($packing_data['packing_data']['selected_data']),
+                    'comparison' => $this->calculatePeriodAnalytics($packing_data['packing_data']['comparison_data']),
+                ],
+                'day_of_week_analytics' => [
+                    'selected' => $this->calculateDayOfWeekAnalytics($packing_data['packing_data']['selected_data']),
+                    'comparison' => $this->calculateDayOfWeekAnalytics($packing_data['packing_data']['comparison_data']),
+                ]
+            ]
+        );
+    
+        // Return response with separate packing_data and analytics_data
         return response()->json([
-            'success'=>true,
-            'packing_data'      =>  $packing_data,
+            'success' => true,
+            'packing_data' => $packing_data['packing_data'], // packing data (selected and comparison data)
+            'analytics_data' => $analytics_data, // merged analytics data including period averages and day of week analytics
         ]);
     }
     
-    public function get_data_between($date_from, $date_to) {
+    // Helper function to calculate period analytics with average, min, and max
+    public function calculatePeriodAnalytics($data)
+    {
+        // Initialize arrays for period calculations
+        $periods = [
+            'first_period' => [],
+            'second_period' => [],
+            'third_period' => []
+        ];
+    
+        $totalDays = count($data);
+        $firstPeriodEnd = ceil($totalDays / 3); // First 1/3 of the month
+        $secondPeriodEnd = ceil($totalDays * 2 / 3); // First 2/3 of the month
+    
+        // Assign data to periods
+        foreach ($data as $index => $item) {
+            if ($index < $firstPeriodEnd) {
+                $periods['first_period'][] = $item[1]; // quantity in first period
+            } elseif ($index < $secondPeriodEnd) {
+                $periods['second_period'][] = $item[1]; // quantity in second period
+            } else {
+                $periods['third_period'][] = $item[1]; // quantity in third period
+            }
+        }
+    
+        // Calculate average, min, max for each period
+        $periodAnalytics = [
+            'average' => [
+                'first_period' => $this->calculateAverage($periods['first_period']),
+                'second_period' => $this->calculateAverage($periods['second_period']),
+                'third_period' => $this->calculateAverage($periods['third_period']),
+            ],
+            'max' => [
+                'first_period' => max($periods['first_period']),
+                'second_period' => max($periods['second_period']),
+                'third_period' => max($periods['third_period']),
+            ],
+            'min' => [
+                'first_period' => min($periods['first_period']),
+                'second_period' => min($periods['second_period']),
+                'third_period' => min($periods['third_period']),
+            ]
+        ];
+    
+        return $periodAnalytics;
+    }
+    
+    private function calculateAverage($data)
+    {
+        return count($data) > 0 ? array_sum($data) / count($data) : 0;
+    }
+    
+    
+    // Calculate Day of Week Analytics
+    public function calculateDayOfWeekAnalytics($data)
+    {
+        $daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+        $ordersByDay = [
+            'Sunday' => [], 'Monday' => [], 'Tuesday' => [], 'Wednesday' => [], 'Thursday' => [], 'Friday' => [], 'Saturday' => []
+        ];
+    
+        // Group orders by day of the week
+        foreach ($data as $item) {
+            $date = Carbon::parse($item[0]);
+            $dayOfWeek = $date->format('l');
+            $ordersByDay[$dayOfWeek][] = $item[1];
+        }
+    
+        // Calculate average, min, and max values for each day
+        $average = [];
+        $min = [];
+        $max = [];
+    
+        foreach ($ordersByDay as $day => $orders) {
+            $average[$day] = count($orders) ? array_sum($orders) / count($orders) : 0;
+            $min[$day] = count($orders) ? min($orders) : 0;
+            $max[$day] = count($orders) ? max($orders) : 0;
+        }
+    
+        return [
+            'average' => $average,
+            'min' => $min,
+            'max' => $max
+        ];
+    }
+    
+    // Get Data Between Selected Dates
+    public function get_data_between($date_from, $date_to)
+    {
         $dates = [];
         $current_date = strtotime($date_from);
         $today = Carbon::today();
@@ -152,84 +347,19 @@ class OwnerDashboardController extends Controller
             $comparison_data[] = [$date, $previousQuantity, $actualComparisonDate];
         }
     
-        // 📌 **Handle Future Dates (If Current Month)**
-        if (Carbon::parse($date_from)->isCurrentMonth()) {
-            $last_available_date = collect($selected_data)->last()[0] ?? $date_from;
-    
-            while (Carbon::parse($last_available_date)->lt(Carbon::parse($date_to))) {
-                $last_available_date = Carbon::parse($last_available_date)->addDay()->toDateString();
-    
-                // Get the same weekday from the previous month
-                $same_weekday_last_month = Carbon::parse($last_available_date)->subMonth();
-                while ($same_weekday_last_month->format('l') !== Carbon::parse($last_available_date)->format('l')) {
-                    $same_weekday_last_month->subDay();
-                }
-    
-                // Get data from previous month for the same weekday
-                $previousData = $previousPackingMap->get($same_weekday_last_month->toDateString());
-    
-                if ($previousData) {
-                    $previousQuantity = (int)$previousData->quantity;
-                } else {
-                    // Fallback: take from the last week of two months ago
-                    $fallbackData = $fallbackPackingMap->first();
-                    $previousQuantity = $fallbackData ? (int)$fallbackData->quantity : 0;
-                }
-    
-                $comparison_data[] = [$last_available_date, $previousQuantity];
-            }
-        }
-    
-        // 📌 **Calculate Analytics (Using Actual Dates)**
-        function calculateAnalytics($data, $useActualDates = false) {
-            $sum = 0;
-            $max_value = PHP_INT_MIN;
-            $min_value = PHP_INT_MAX;
-            $max_date = "N/A";
-            $min_date = "N/A";
-            $valid_entries = 0;
-    
-            foreach ($data as $item) {
-                $value = (int)$item[1];
-                $actualDate = $useActualDates && isset($item[2]) ? $item[2] : $item[0];
-    
-                if ($value > 0) { // Ignore zero values
-                    $sum += $value;
-                    $valid_entries++;
-    
-                    if ($value > $max_value) {
-                        $max_value = $value;
-                        $max_date = Carbon::parse($actualDate)->format('D d, M'); // "Thu 10, May"
-                    }
-                    if ($value < $min_value) {
-                        $min_value = $value;
-                        $min_date = Carbon::parse($actualDate)->format('D d, M'); // "Thu 10, May"
-                    }
-                }
-            }
-    
-            // If no valid entries, reset min/max values
-            if ($valid_entries === 0) {
-                $max_value = 0;
-                $min_value = 0;
-                $max_date = "N/A";
-                $min_date = "N/A";
-            }
-    
-            $average = $valid_entries > 0 ? round($sum / $valid_entries, 2) : 0;
-            return compact("sum", "max_value", "max_date", "min_value", "min_date", "average");
-        }
-    
         return [
-            "selected_data" => $selected_data,
-            "comparison_data" => $comparison_data,
-            "selected_analytics" => calculateAnalytics($selected_data),
-            "comparison_analytics" => calculateAnalytics($comparison_data, true),
-            "date_comparison_between"   =>  [
-                'selected_date'     =>  $selectedMonthKey,
-                'comparison_date'   =>  $comparisonMonthKey
+            'packing_data' => [
+                'selected_data' => $selected_data,
+                'comparison_data' => $comparison_data,
             ],
-
+            'analytics_data' => [
+                'selected_analytics' => $this->calculateAnalytics($selected_data),
+                'comparison_analytics' => $this->calculateAnalytics($comparison_data, true),
+                'date_comparison_between' => [
+                    'selected_date' => $selectedMonthKey,
+                    'comparison_date' => $comparisonMonthKey
+                ],
+            ],
         ];
     }
     
