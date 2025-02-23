@@ -148,8 +148,18 @@ class OwnerDashboardController extends Controller
             $packing_data['analytics_data'],
             [
                 'period_analytics' => [
-                    'selected' => $this->calculatePeriodAnalytics($packing_data['packing_data']['selected_data']),
-                    'comparison' => $this->calculatePeriodAnalytics($packing_data['packing_data']['comparison_data']),
+                    3 => [
+                            'selected' => $this->calculatePeriodAnalytics($packing_data['packing_data']['selected_data'], 3),
+                            'comparison' => $this->calculatePeriodAnalytics($packing_data['packing_data']['comparison_data'], 3),
+                    ],
+                    4 => [
+                            'selected' => $this->calculatePeriodAnalytics($packing_data['packing_data']['selected_data'], 4),
+                            'comparison' => $this->calculatePeriodAnalytics($packing_data['packing_data']['comparison_data'], 4),
+                    ],
+                    6 => [
+                            'selected' => $this->calculatePeriodAnalytics($packing_data['packing_data']['selected_data'], 6),
+                            'comparison' => $this->calculatePeriodAnalytics($packing_data['packing_data']['comparison_data'], 6),
+                    ],
                 ],
                 'day_of_week_analytics' => [
                     'selected' => $this->calculateDayOfWeekAnalytics($packing_data['packing_data']['selected_data']),
@@ -167,48 +177,63 @@ class OwnerDashboardController extends Controller
     }
     
     // Helper function to calculate period analytics with average, min, and max
-    public function calculatePeriodAnalytics($data)
+    public function calculatePeriodAnalytics($data, $number_of_period)
     {
         // Initialize arrays for period calculations
-        $periods = [
-            'first_period' => [],
-            'second_period' => [],
-            'third_period' => []
-        ];
+        $periods = [];
     
+        // Determine the total number of days
         $totalDays = count($data);
-        $firstPeriodEnd = ceil($totalDays / 3); // First 1/3 of the month
-        $secondPeriodEnd = ceil($totalDays * 2 / 3); // First 2/3 of the month
     
-        // Assign data to periods
-        foreach ($data as $index => $item) {
-            if ($index < $firstPeriodEnd) {
-                $periods['first_period'][] = $item[1]; // quantity in first period
-            } elseif ($index < $secondPeriodEnd) {
-                $periods['second_period'][] = $item[1]; // quantity in second period
-            } else {
-                $periods['third_period'][] = $item[1]; // quantity in third period
+        // 📌 Fixed Days Per Period Logic
+        $daysPerPeriod = floor($totalDays/$number_of_period);
+        $currentPeriod = 1;
+        $startDay = 1;
+        $currentIndex = 0;
+    
+        // 📌 Loop through all periods
+        for ($i = 1; $i <= $number_of_period; $i++) {
+            // Calculate End Day for Current Period
+            $endDay = $startDay + $daysPerPeriod - 1;
+    
+            // 📌 If it's the last period, include all remaining days
+            if ($i === $number_of_period) {
+                $endDay = $totalDays;
+            }
+    
+            // 📌 Generate Descriptive Label
+            $periodLabel = "Day $startDay-$endDay";
+    
+            // Initialize the period array
+            $periods[$periodLabel] = [];
+    
+            // 📌 Collect Data for the Current Period
+            while ($currentIndex < $totalDays) {
+                $day = $currentIndex + 1;
+                $periods[$periodLabel][] = (int)$data[$currentIndex][1];
+                $currentIndex++;
+    
+                // 📌 Move to the next period
+                if ($day == $endDay) {
+                    $startDay = $endDay + 1;
+                    break;
+                }
             }
         }
     
-        // Calculate average, min, max for each period
+        // 📌 Complete $periodAnalytics array
         $periodAnalytics = [
-            'average' => [
-                'first_period' => $this->calculateAverage($periods['first_period']),
-                'second_period' => $this->calculateAverage($periods['second_period']),
-                'third_period' => $this->calculateAverage($periods['third_period']),
-            ],
-            'max' => [
-                'first_period' => max($periods['first_period']),
-                'second_period' => max($periods['second_period']),
-                'third_period' => max($periods['third_period']),
-            ],
-            'min' => [
-                'first_period' => min($periods['first_period']),
-                'second_period' => min($periods['second_period']),
-                'third_period' => min($periods['third_period']),
-            ]
+            'average' => [],
+            'max' => [],
+            'min' => []
         ];
+    
+        // 📌 Calculate average, max, and min for each period
+        foreach ($periods as $periodName => $values) {
+            $periodAnalytics['average'][$periodName] = count($values) > 0 ? round(array_sum($values) / count($values), 2) : 0;
+            $periodAnalytics['max'][$periodName] = count($values) > 0 ? max($values) : 0;
+            $periodAnalytics['min'][$periodName] = count($values) > 0 ? min($values) : 0;
+        }
     
         return $periodAnalytics;
     }
@@ -217,7 +242,6 @@ class OwnerDashboardController extends Controller
     {
         return count($data) > 0 ? array_sum($data) / count($data) : 0;
     }
-    
     
     // Calculate Day of Week Analytics
     public function calculateDayOfWeekAnalytics($data)
@@ -362,8 +386,6 @@ class OwnerDashboardController extends Controller
             ],
         ];
     }
-    
-    
     
     public function get_data_between_ai_good_1($date_from, $date_to){
         $dates = [];

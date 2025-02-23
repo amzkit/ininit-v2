@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import axios from 'axios';
 
 // 📌 Data for Selected and Comparison Charts
@@ -48,7 +48,6 @@ const getMonthName = (type) => {
 
 const selectedMonthLabel = computed(() => getMonthName("selected_date"));
 const comparisonMonthLabel = computed(() => getMonthName("comparison_date"));
-
 
 // 📌 Chart Options and Series for Line Chart
 const lineChartOptions = ref({
@@ -123,6 +122,7 @@ const barChartWeekDayOptions = ref({
     id: "day-of-week-analytics-bar-chart",
     type: "bar",
     stacked: false,
+    background: "#FFFFFF"
   },
   plotOptions: {
     bar: {
@@ -134,6 +134,13 @@ const barChartWeekDayOptions = ref({
   },
   xaxis: {
     categories: ["Sun", "Mon", "Tue", "Wed", "Thur", "Fri", "Sat"],
+    title: {
+        text: "Order by Weekdays",
+        style: {
+          fontSize: "14px",
+          fontWeight: "bold"
+        }
+      }
   },
   yaxis: {
     title: { text: "Orders" },
@@ -149,7 +156,6 @@ const barChartWeekDayOptions = ref({
     position: 'top',
     floating: true,
     offsetY: -20,
-    
   }
 });
 
@@ -196,7 +202,91 @@ const barChartPeriodOptions = ref({
   }
 });
 
+// 📌 Period Selector
+const selectedPeriods = ref(6);
+const availablePeriods = ref([3, 4, 6]);
+
 const barChartPeriodSeries = ref([[]]);  // Data for Bar Chart
+
+
+// 📌 Chart Options and Series for Period Analytics
+const periodChartOptions = ref({});
+const periodChartSeries = ref([]);
+
+// 📌 Normalize Period Data with Descriptive X-Axis Titles
+const normalizePeriodData = (periods) => {
+  const selectedData = periodAnalytics.value?.[periods]?.selected || {};
+  const comparisonData = periodAnalytics.value?.[periods]?.comparison || {};
+
+  // 📌 Extract Descriptive Categories Directly from Backend Labels
+  const categories = Object.keys(selectedData.average || {});
+
+  // 📌 Extract Average Data for Selected and Comparison
+  const averageSelected = categories.map(label => selectedData.average[label] || 0);
+  const averageComparison = categories.map(label => comparisonData.average[label] || 0);
+
+  return {
+    series: [
+      {
+        name: selectedMonthLabel.value,
+        data: averageSelected
+      },
+      {
+        name: comparisonMonthLabel.value,
+        data: averageComparison
+      }
+    ],
+    categories
+  };
+};
+
+// 📌 Update Chart Based on Selected Periods
+const updatePeriodChart = () => {
+  const data = normalizePeriodData(selectedPeriods.value);
+  periodChartSeries.value = data.series;
+  periodChartOptions.value = {
+    chart: {
+      type: "bar",
+      toolbar: { show: false }
+    },
+    plotOptions: {
+      bar: {
+        horizontal: false,
+        columnWidth: "45%",
+        endingShape: "rounded",
+        dataLabels: { position: 'top' },
+      },
+    },
+    xaxis: {
+      categories: data.categories,
+      title: {
+        text: selectedPeriods.value + " Periods",
+        style: {
+          fontSize: "14px",
+          fontWeight: "bold"
+        }
+      }
+    },
+    yaxis: {
+      labels: {
+        formatter: (value) => value.toFixed(2)
+      }
+    },
+    tooltip: {
+      y: {
+        formatter: (value) => value.toFixed(2)
+      }
+    },
+    dataLabels: {
+      enabled: true,
+      style: { fontSize: "12px", colors: ["#000"] },
+      position: 'top',
+      floating: true,
+      offsetY: -20,
+    }
+  };
+};
+
 
 // 📌 Fetch Data
 const fetchData = async () => {
@@ -243,20 +333,20 @@ const fetchData = async () => {
         ]);
 
         // Period
-        const periods = ["first_period", "second_period", "third_period"];
+        periodAnalytics.value = response.data.analytics_data.period_analytics;
 
-        const selectedPeriodData = periods.map(period => periodAnalytics.value.selected.average[period]);
-        const comparisonPeriodData = periods.map(period => periodAnalytics.value.comparison.average[period]);
-
-        barChartPeriodSeries.value = []
-        barChartPeriodSeries.value.push([
-            { name: selectedMonthLabel.value, data: selectedPeriodData },
-            { name: comparisonMonthLabel.value, data: comparisonPeriodData },
-        ]);
+        // 📌 Update Period Chart
+        updatePeriodChart();
+        //barChartPeriodSeries.value = []
+        //barChartPeriodSeries.value.push([
+        //    { name: selectedMonthLabel.value, data: selectedPeriodData },
+        //    { name: comparisonMonthLabel.value, data: comparisonPeriodData },
+        //]);
 
     }
   });
 };
+
 
 // 📌 Helper Methods (Formatting)
 const formatNumber = (num) => num ? num.toLocaleString() : "0";
@@ -275,34 +365,151 @@ const formatThaiDate = (dateString) => {
 
 
 
-// 📌 Fetch Data on Page Load
-onMounted(fetchData);
+const isSticky = ref(false);
+
+// 📌 Scroll Event Listener
+const handleScroll = () => {
+    const navbarHeight = 64; // Approximate height of the navbar (h-16)
+    isSticky.value = window.scrollY > navbarHeight;
+};
+
+onMounted(() => {
+  // 📌 Fetch Data on Page Load
+  fetchData();
+  window.addEventListener('scroll', handleScroll);
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener('scroll', handleScroll);
+});
+
+const goToPreviousMonth = () => {
+  let month = parseInt(selectedMonth.value);
+  let year = parseInt(selectedYear.value);
+
+  // 📌 Go to the previous month
+  if (month === 1) {
+    month = 12;
+    year -= 1;
+  } else {
+    month -= 1;
+  }
+
+  // 📌 Update the values
+  selectedMonth.value = String(month).padStart(2, "0");
+  selectedYear.value = String(year);
+  fetchData();
+}
+
+// 📌 Next Month Visibility
+const isNextMonthAvailable = ref(false);
+
+// 📌 Check if Next Month is Available
+const checkNextMonthAvailability = () => {
+  let month = parseInt(selectedMonth.value);
+  let year = parseInt(selectedYear.value);
+
+  // 📌 Go to the next month
+  if (month === 12) {
+    month = 1;
+    year += 1;
+  } else {
+    month += 1;
+  }
+
+  // 📌 Check if Next Month is within the selectable range
+  isNextMonthAvailable.value = years.value.includes(year) && months.value.some(m => m.value === String(month).padStart(2, "0"));
+};
+
+// 📌 Go to Next Month
+const goToNextMonth = () => {
+  if (!isNextMonthAvailable.value) return;
+  let month = parseInt(selectedMonth.value);
+  let year = parseInt(selectedYear.value);
+
+  // 📌 Go to the next month
+  if (month === 12) {
+    month = 1;
+    year += 1;
+  } else {
+    month += 1;
+  }
+
+  // 📌 Update the values
+  selectedMonth.value = String(month).padStart(2, "0");
+  selectedYear.value = String(year);
+
+  // 📌 Re-check availability
+  checkNextMonthAvailability();
+  fetchData();
+};
+
+// 📌 Watcher to Update Next Month Availability
+watch([selectedMonth, selectedYear], () => {
+  checkNextMonthAvailability();
+});
 </script>
 
 <template>
   <Head title="Order" />
 
   <AuthenticatedLayout>
-    <template #header>
-      <div class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
-        Order
-      </div>
-    </template>
+
 
     <!-- 📌 Month & Year Selector -->
-    <div class="mt-2">
-      <div class="max-w-sm mx-auto p-3 bg-white rounded-lg shadow-md">
-        <label class="block text-sm font-medium text-gray-700">ข้อมูลเดือน</label>
-        <div class="flex gap-2 mt-2">
-          <select v-model="selectedMonth" class="w-1/2 rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2">
-            <option v-for="month in months" :key="month.value" :value="month.value">{{ month.label }}</option>
-          </select>
-          <select v-model="selectedYear" class="w-1/2 rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2">
-            <option v-for="year in years" :key="year" :value="year">{{ year }}</option>
-          </select>
+    <!-- 📌 Floating Date Selector Below Top Bar -->
+    <!-- 📌 Sticky Date Selector -->
+    <div
+        :class="{
+            'fixed top-0 left-0 w-full z-20 bg-white shadow-md border-b border-gray-200 transition-transform duration-300 transform': true,
+            '-translate-y-full': !isSticky,
+            'translate-y-0': isSticky
+        }"
+    >
+        <div class="max-w-4xl mx-auto p-3 flex flex-col md:flex-row md:justify-between md:items-center gap-2">
+            <!-- 📌 Date Selection (One Row on Mobile) -->
+            <div class="flex flex-col w-full md:flex-row md:items-center gap-2">
+                <label class="block text-sm font-medium text-gray-700">ข้อมูลเดือน:</label>
+                <div class="flex w-full gap-2">
+                    <!-- 📌 Action Buttons (Compact Previous Month Icon) -->
+                    <div class="flex items-center gap-2 mt-2 md:mt-0">
+                        <!-- Previous Month Icon -->
+                        <button
+                            @click="goToPreviousMonth"
+                            class="text-gray-500 hover:text-gray-700 transition rounded-full p-2 hover:bg-gray-100 focus:outline-none"
+                            title="Previous Month"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                    </div>
+                    <select v-model="selectedMonth" class="w-1/2 rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2" @change="fetchData">
+                        <option v-for="month in months" :key="month.value" :value="month.value">
+                            {{ month.label }}
+                        </option>
+                    </select>
+                    <select v-model="selectedYear" class="w-1/2 rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2" @change="fetchData">
+                        <option v-for="year in years" :key="year" :value="year">
+                            {{ year }}
+                        </option>
+                    </select>
+                <!-- 📌 Next Month Icon (Shown Only When Available) -->
+                <button 
+                    v-if="isNextMonthAvailable"
+                    @click="goToNextMonth"
+                    class="text-gray-500 hover:text-gray-700 transition rounded-full p-2 hover:bg-gray-100 focus:outline-none"
+                    title="Next Month"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+                </div>
+            </div>
+
+
         </div>
-        <button @click="fetchData" class="mt-4 w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 transition">Submit</button>
-      </div>
     </div>
 
     <!-- 📌 Analytics Table -->
@@ -350,33 +557,49 @@ onMounted(fetchData);
     </div>
 
     <!-- 📌 Line Chart -->
-    <div class="flex justify-center w-full">
-      <div class="w-full max-w-[800px] p-4">
+    <div class="flex justify-center max-w-3xl mx-auto my-2">
+      <div class="w-full max-w-[800px] p-4 bg-white rounded-lg shadow-md">
         Order by Day in Month
         <apexchart class="w-full h-[250px] sm:h-[400px]" height="250px" type="line" :options="lineChartOptions" :series="lineChartSeries"></apexchart>
       </div>
     </div>
 
     <!-- 📌 Bar Chart -->
-    <div class="flex justify-center w-full">
-      <div class="w-full max-w-[800px] p-4">
+    <div class="flex justify-center max-w-3xl mx-auto my-2">
+      <div class="w-full max-w-[800px] p-4 bg-white rounded-lg shadow-md">
         Average Order by Day of Week
         <apexchart class="w-full h-[350px]" type="bar" :options="barChartWeekDayOptions" :series="barChartWeekDaySeries[0]"></apexchart>
       </div>
     </div>
 
         <!-- 📌 Bar Chart -->
-    <div class="flex justify-center w-full">
-      <div class="w-full max-w-[800px] p-4">
+        <div class="flex justify-center max-w-3xl mx-auto my-2">
+      <div class="w-full max-w-[800px] p-4 bg-white rounded-lg shadow-md">
         Max Order by Day of Week
         <apexchart class="w-full h-[350px]" type="bar" :options="barChartWeekDayOptions" :series="barChartWeekDaySeries[1]"></apexchart>
       </div>
     </div>
 
-    <div class="flex justify-center w-full">
-      <div class="w-full max-w-[800px] p-4">
-        Average Order by Period
-        <apexchart class="w-full h-[350px]" type="bar" :options="barChartPeriodOptions" :series="barChartPeriodSeries[0]"></apexchart>
+    <div class="flex justify-center max-w-3xl mx-auto my-2">
+      <div class="w-full max-w-[800px] p-4 bg-white rounded-lg shadow-md">
+        <!-- 📌 Flex Row for Title and Select Option -->
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-gray-700">Average Order by Period</h3>
+          <div class="flex items-center gap-2">
+            <label for="period-select" class="text-sm text-gray-600">Select Periods:</label>
+            <select 
+              id="period-select"
+              v-model="selectedPeriods" 
+              @change="updatePeriodChart" 
+              class="rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 pr-10">
+              <option v-for="period in availablePeriods" :key="period" :value="period">
+                {{ period }}
+              </option>
+            </select>
+          </div>
+        </div>
+        <!-- 📌 ApexChart for Period Analytics -->
+        <apexchart class="w-full h-[350px]" type="bar" :options="periodChartOptions" :series="periodChartSeries"></apexchart>
       </div>
     </div>
   </AuthenticatedLayout>
