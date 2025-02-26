@@ -96,6 +96,12 @@ class Product extends Model
         return $this->belongsTo(Store::class);
     }
 
+    public function inventory()
+    {
+        return $this->hasOne(Inventory::class)
+                    ->whereDate('created_at', \Carbon\Carbon::today());
+    }
+
     public function getInventoryAttribute()
     {
         $result = 0;

@@ -57,4 +57,24 @@ class InventoryIO extends Model
 
         return $result;
     }
+
+    public function fromCustomer()
+    {
+        return $this->belongsTo(Customer::class, 'from_customer_id');
+    }
+
+    public function fromAddress()
+    {
+        return $this->belongsTo(CustomerAddress::class, 'from_address_id');
+    }
+
+    public function toCustomer()
+    {
+        return $this->belongsTo(Customer::class, 'to_customer_id');
+    }
+
+    public function toAddress()
+    {
+        return $this->belongsTo(CustomerAddress::class, 'to_address_id');
+    }
 }

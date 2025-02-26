@@ -23,10 +23,17 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', function () {
         return Inertia::render('Dashboard/Dashboard');
     })->middleware(['auth'])->name('dashboard');
-    Route::get('/dashboard/order', function () {
-        return Inertia::render('Dashboard/Order');
-    })->middleware(['auth'])->name('dashboard.order');
+    Route::get('/dashboard/order', function () {    return Inertia::render('Dashboard/Order');  })->name('dashboard.order');
+    Route::get('/dashboard/inventory', function () {    return Inertia::render('Dashboard/Inventory');  })->name('dashboard.inventory');
+
+    Route::get('/product', function () {    return Inertia::render('Product/Index');  })->name('product.index');
     
+    Route::get('/inventory', function () {    return Inertia::render('Inventory/Index');  })->name('inventory.index');
+
+
+
+
+
 });
 
 require __DIR__.'/auth.php';

@@ -25,5 +25,14 @@ Route::middleware('web')->group(function () {
 
         Route::get('admin/dashboard/inventory/delta', [AdminDashboardController::class, 'inventory_delta']);
         Route::get('export/inventory', [InventoryExportController::class, 'export']);
+
+        Route::get('product', [ProductController::class, 'index']);
+        Route::post('product', [ProductController::class, 'create']);
+        Route::put('product/{id}', [ProductController::class, 'update']);
+        Route::delete('product/{id}', [ProductController::class,'destroy']);
+
+        Route::get('inventory', [InventoryController::class, 'index']);
+        Route::post('inventory/update', [InventoryController::class, 'update']);
+        Route::post('inventory/order', [InventoryController::class, 'saveOrder']);
     });
 });
