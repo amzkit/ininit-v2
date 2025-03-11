@@ -32,7 +32,11 @@ Route::middleware('auth')->group(function () {
 
 
 
-
+    Route::get('/chat', function() 
+    {
+        $notification = new App\Models\Notification;
+        $notification->notify(new App\Notifications\TelegramNotification());
+    });
 
 });
 

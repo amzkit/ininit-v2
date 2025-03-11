@@ -15,6 +15,7 @@ class InventoryIO extends Model
         'product_id',
         'io_amount',
         'note',
+        'type',
     ];
 
     protected $appends = [
@@ -56,6 +57,30 @@ class InventoryIO extends Model
         }
 
         return $result;
+    }
+
+    public static function getIOBySKUDate($store_id, $sku, $date=null)
+    {
+
+        if(!isset($date)){
+            $date = \Carbon\Carbon::today();
+            $date = $date->format('Y-m-d');
+        }
+
+        $product = Product::where([
+            ['store_id','=', $store_id],
+            ['sku','=', $sku],
+            ])->first();
+
+        $result = InventoryIO::where([
+            ['store_id', '=', $store_id],
+            ['product_id','=', $product->id],
+        ])->whereDate('created_at','=', $date)->first();
+        
+        if(!isset($result)){
+            return 0;
+        }
+        return $result->io_amount;
     }
 
     public function fromCustomer()

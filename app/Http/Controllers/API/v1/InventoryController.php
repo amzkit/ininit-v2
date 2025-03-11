@@ -65,30 +65,30 @@ class InventoryController extends Controller
 
     public function update(Request $request)
     {
-        $products = $request->products;
-        $date = \Carbon\Carbon::today();
+        $product_id = $request->product_id;
+        $inventory = $request->inventory;
+        $date = $request->date??\Carbon\Carbon::today();
     
-        foreach ($products as $product) {
-            // Get or create today's inventory record using `created_at`
-            $inv = Inventory::where('product_id', $product['id'])
-                            ->where('store_id', $this->store->id)
-                            ->whereDate('created_at', $date)
-                            ->first();
-    
-            // Create a new record if today's inventory does not exist
-            if (!$inv) {
-                $inv = new Inventory();
-                $inv->product_id = $product['id'];
-                $inv->store_id = $this->store->id;
-            }
-    
-            // Update the inventory value
-            $inv->inventory = $product['inventory'];
-            $inv->created_at = $date;
-            $inv->save();
+        // Get or create today's inventory record using `created_at`
+        $inv = Inventory::where('product_id', $product_id)
+                        ->where('store_id', $this->store->id)
+                        ->whereDate('created_at', $date)
+                        ->first();
+
+        // Create a new record if today's inventory does not exist
+        if (!$inv) {
+            $inv = new Inventory();
+            $inv->product_id = $product_id;
+            $inv->store_id = $this->store->id;
         }
+
+        // Update the inventory value
+        $inv->inventory = $inventory;
+        $inv->created_at = $date;
+        $inv->save();
+        
     
-        return response()->json(['success' => true, 'products' => $products]);
+        return response()->json(['success' => true, 'inventory' => $inv]);
     }
 
     public function history(Request $request)
@@ -125,24 +125,24 @@ class InventoryController extends Controller
 
     public function in_out(Request $request)
     {
-        $product = $request->product;
+        $product_id = $request->product_id;
         $io_amount = $request->io_amount;
         $note = $request->note;
-        $date = \Carbon\Carbon::today();
+        $date = $request->date??\Carbon\Carbon::today();
     
         // Create Inventory IO Entry
         $inv_io = new InventoryIO;
         $inv_io->store_id = $this->store->id;
-        $inv_io->product_id = $product['id'];
+        $inv_io->product_id = $product_id;
         $inv_io->io_amount = $io_amount;
         $inv_io->note = $note;
         $inv_io->save();
     
         // Update today's Inventory
         $inventory = Inventory::firstOrNew([
-            'product_id' => $product['id'],
+            'product_id' => $product_id,
             'store_id' => $this->store->id,
-            'date' => $date
+            'created_at' => $date
         ]);
     
         $inventory->inventory += $io_amount;
@@ -186,12 +186,21 @@ class InventoryController extends Controller
     }
 
     public function saveOrder(Request $request)
-{
-    $orderedIds = $request->ordered_ids;
-    foreach ($orderedIds as $index => $id) {
-        Product::where('id', $id)->update(['sort_order' => $index]);
+    {
+        $orderedIds = $request->ordered_ids;
+        foreach ($orderedIds as $index => $id) {
+            Product::where('id', $id)->update(['sort_order' => $index]);
+        }
+
+        return response()->json(['success' => true]);
     }
 
-    return response()->json(['success' => true]);
-}
+    public function notify(Request $request)
+    {
+        $message = "Test Notification";
+        $googleChatService = new \App\Services\GoogleChatService();
+        $googleChatService->sendMessage($message);
+
+        return response()->json(['success' => true]);
+    }
 }

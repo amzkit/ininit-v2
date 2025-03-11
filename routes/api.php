@@ -34,5 +34,17 @@ Route::middleware('web')->group(function () {
         Route::get('inventory', [InventoryController::class, 'index']);
         Route::post('inventory/update', [InventoryController::class, 'update']);
         Route::post('inventory/order', [InventoryController::class, 'saveOrder']);
+        Route::post('inventory/in_out', [InventoryController::class, 'in_out']);
+
+        //Route::post('/telegram/webhook', [TelegramBotController::class, 'webhook']);
+        //Route::get('/telegram/send', [TelegramBotController::class, 'sendMessage']);
+
+        Route::prefix('partner')->group(function () {
+            Route::get('/search', [PartnerController::class, 'search']); // Search partners
+            Route::post('/create', [PartnerController::class, 'store']); // Create a new partner
+            Route::put('/update/{id}', [PartnerController::class, 'update']); // Update a partner
+        });
+
+        Route::get('/notification/inventory', [NotificationController::class, 'inventory']);
     });
 });
