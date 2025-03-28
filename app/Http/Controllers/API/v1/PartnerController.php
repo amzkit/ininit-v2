@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Partner;
 use Illuminate\Validation\ValidationException;
 use App\Http\Controllers\Controller;
+use App\Models\InventoryIO;
 
 class PartnerController extends Controller
 {
@@ -84,5 +85,32 @@ class PartnerController extends Controller
         } catch (ValidationException $e) {
             return response()->json(['errors' => $e->errors()], 422);
         }
+    }
+
+    public function lastUsed(Request $request)
+    {
+
+        $usedPartnerIds = InventoryIO::where('store_id', $this->store_id)
+            ->whereNotNull('partner_id')
+            ->orderBy('created_at', 'desc')
+            ->limit(10) // Fetch last 10 transactions first
+            ->pluck('partner_id') // Extract only partner IDs
+            ->unique() // Ensure each partner appears only once
+            ->take(5); // Get only the last 5 unique partners
+
+        // 🔹 Step 2: Get last 5 newly created partners
+        $newPartnerIds = Partner::where('store_id', $this->store_id)
+            ->orderBy('created_at', 'desc')
+            ->limit(5) // Last 5 created partners
+            ->pluck('id');
+
+        // 🔹 Step 3: Merge & Remove Duplicates
+        $allPartnerIds = $usedPartnerIds->merge($newPartnerIds)->unique()->take(5); // Keep only 5 unique
+
+        // 🔹 Step 4: Fetch full partner details
+        $lastUsedPartners = Partner::whereIn('id', $allPartnerIds)->get();
+
+        return response()->json(['partners' => $lastUsedPartners]);
+
     }
 }

@@ -60,7 +60,20 @@ class InventoryController extends Controller
             $product->yesterday_inventory = $yesterday_inventory->inventory ?? 0;
         }
     
-        return response()->json(['success' => true, 'products' => $products]);
+        $inventory_ios = InventoryIO::where('store_id', $this->store->id)
+            ->whereDate('created_at', $selectedDate)
+            ->orderBy('created_at', 'asc')
+            ->with('product', 'partner') // Load product and partner data
+            //->with('product', 'partner') // โหลดข้อมูลสินค้าและพาร์ทเนอร์
+            ->get();
+
+
+
+        return response()->json([
+            'success' => true,
+            'date' => $selectedDate->format('Y-m-d'),
+            'products' => $products,
+            'inventory_ios' => $inventory_ios]);
     }
 
     public function update(Request $request)
@@ -126,6 +139,7 @@ class InventoryController extends Controller
     public function in_out(Request $request)
     {
         $product_id = $request->product_id;
+        $partner_id = $request->partner_id;
         $io_amount = $request->io_amount;
         $note = $request->note;
         $date = $request->date??\Carbon\Carbon::today();
@@ -135,6 +149,8 @@ class InventoryController extends Controller
         $inv_io->store_id = $this->store->id;
         $inv_io->product_id = $product_id;
         $inv_io->io_amount = $io_amount;
+        $inv_io->type = $io_amount > 0 ? 'in' : 'out';
+        $inv_io->partner_id = $partner_id;
         $inv_io->note = $note;
         $inv_io->save();
     
@@ -195,12 +211,4 @@ class InventoryController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function notify(Request $request)
-    {
-        $message = "Test Notification";
-        $googleChatService = new \App\Services\GoogleChatService();
-        $googleChatService->sendMessage($message);
-
-        return response()->json(['success' => true]);
-    }
 }

@@ -31,14 +31,17 @@ class Notification extends Model
             $inventoryData = [];
             $ioData = [];
     
+            $last = [];
             foreach ($sku_list as $sku) {
                 $inv = Inventory::getInventoryFromSKU($sku, $store_id, $date);
                 $inventoryData[] = $inv;
                 $lastInv = Inventory::getLastInventoryFromSKU($sku, $store_id, $date);
                 $io = $inv - ($lastInv + InventoryIO::getIOBySKUDate($store_id, $sku, $date));
                 $ioData[] = $io;
+
+                $last[] = $lastInv;
             }
-    
+            dd($inventoryData, $ioData, $last);
             return [$inventoryData, $ioData];
         }
     
@@ -111,7 +114,7 @@ class Notification extends Model
         $msg .= '• บูสเตอร์    '. $balance[1] . "\n\n";
     
         // 📌 Fetch IO Notes for the Specified Date
-        $ios = \App\Models\InventoryIO::getIONoteByDate($store_id, $formattedDate);
+        $ios = \App\Models\InventoryIO::getIONoteByDate($formattedDate);
         if (count($ios) > 0) {
             $msg .= date("d/m/Y", strtotime($date ?: 'today')) . ' สินค้าเข้าออก' . "\n\n";
             foreach ($ios as $io) {
@@ -125,6 +128,7 @@ class Notification extends Model
     
         // Assign and Send Notification
         $this->message = $msg;
+        //dd($this->message);
         $this->notify();
     }
     

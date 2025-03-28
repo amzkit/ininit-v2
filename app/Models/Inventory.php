@@ -67,7 +67,7 @@ class Inventory extends Model
             ->whereDate('created_at', '<=', $date)
             ->latest('created_at') // Get the most recent record before or on the date
             ->first();
-
+            dd($date, $inventory);
             if ($inventory) {
                 return $inventory->inventory;
             }
@@ -84,8 +84,4 @@ class Inventory extends Model
         return $this->belongsTo(Product::class);
     }
 
-    public static function getInventoryArray($month){
-        $inventory = [];
-
-    }
 }

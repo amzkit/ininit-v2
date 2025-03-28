@@ -13,6 +13,7 @@ class InventoryIO extends Model
         'id',
         'store_id',
         'product_id',
+        'partner_id',
         'io_amount',
         'note',
         'type',
@@ -23,6 +24,11 @@ class InventoryIO extends Model
 
     protected $attributes = [
     ];
+
+    public function partner()
+    {
+        return $this->belongsTo(Partner::class);
+    }
 
     public function product()
     {
@@ -50,12 +56,11 @@ class InventoryIO extends Model
 
         foreach($ios as $io){
             $temp = '';
-            $temp .= '[' . $io->product->sku . '] ';
+            $temp .= $io->product->sku . '=';
             $temp .= $io->io_amount . ' ';
             $temp .= $io->note;
             array_push($result, $temp);
         }
-
         return $result;
     }
 

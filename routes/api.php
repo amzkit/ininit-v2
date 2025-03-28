@@ -43,6 +43,7 @@ Route::middleware('web')->group(function () {
             Route::get('/search', [PartnerController::class, 'search']); // Search partners
             Route::post('/create', [PartnerController::class, 'store']); // Create a new partner
             Route::put('/update/{id}', [PartnerController::class, 'update']); // Update a partner
+            Route::get('/last-used', [PartnerController::class, 'lastUsed']);
         });
 
         Route::get('/notification/inventory', [NotificationController::class, 'inventory']);

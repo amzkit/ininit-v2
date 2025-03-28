@@ -13,8 +13,9 @@ return new class extends Migration
     {
         Schema::table('inventory_io', function (Blueprint $table) {
             //
-            $table->foreignId('partner_id')->nullable()->constrained('partners')->nullOnDelete();
+            $table->uuid('partner_id')->nullable();
             $table->enum('type', ['in', 'out'])->default('in'); // ✅ 'in' or 'out'
+            $table->enum('transaction_type', ['purchase', 'sell', 'borrow', 'adjustment', 'opening'])->default('purchase'); // ✅ 'purchase', 'return', 'transfer', 'adjustment', 'opening'
         });
     }
 
